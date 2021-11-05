@@ -1,5 +1,6 @@
+from copy import deepcopy
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Sequence
+from typing import Any, Callable, Dict, Optional, Sequence, Union, Mapping
 
 from pydantic.fields import FieldInfo, Undefined
 
@@ -9,6 +10,34 @@ class ParamTypes(Enum):
     header = "header"
     path = "path"
     cookie = "cookie"
+
+
+ParamAliasGenerator = Union[
+    Dict[ParamTypes, Callable[[str], str]],
+    Callable[[str], str],
+]
+
+
+def merge_param_alias_generators(
+    a: Optional[ParamAliasGenerator], b: Optional[ParamAliasGenerator]
+) -> Optional[ParamAliasGenerator]:
+    """Foreach (param_type, alias_generator) not defined in a,
+    define it by (param_type, alias_generator) in b"""
+
+    if a is None or b is None:
+        return a or b
+    a_is_dict = isinstance(a, Dict)
+    b_is_dict = isinstance(b, Dict)
+    if not a_is_dict:
+        return a
+    result = deepcopy(a)
+    for param_type in ParamTypes:
+        if param_type not in a:
+            if not b_is_dict:
+                result[param_type] = b
+            elif param_type in b:
+                result[param_type] = b[param_type]
+    return result
 
 
 class Param(FieldInfo):

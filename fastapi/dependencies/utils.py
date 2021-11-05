@@ -111,7 +111,7 @@ def get_param_sub_dependant(
     *,
     param: inspect.Parameter,
     path: str,
-    alias_generator: Optional[Callable[[str], str]] = None,
+    alias_generator: Optional[params.ParamAliasGenerator] = None,
     security_scopes: Optional[List[str]] = None,
 ) -> Dependant:
     depends: params.Depends = param.default
@@ -133,7 +133,7 @@ def get_parameterless_sub_dependant(
     *,
     depends: params.Depends,
     path: str,
-    alias_generator: Optional[Callable[[str], str]] = None,
+    alias_generator: Optional[params.ParamAliasGenerator] = None,
 ) -> Dependant:
     assert callable(
         depends.dependency
@@ -152,7 +152,7 @@ def get_sub_dependant(
     dependency: Callable[..., Any],
     path: str,
     name: Optional[str] = None,
-    alias_generator: Optional[Callable[[str], str]] = None,
+    alias_generator: Optional[params.ParamAliasGenerator] = None,
     security_scopes: Optional[List[str]] = None,
 ) -> Dependant:
     security_requirement = None
@@ -288,7 +288,7 @@ def get_dependant(
     path: str,
     call: Callable[..., Any],
     name: Optional[str] = None,
-    alias_generator: Optional[Callable[[str], str]] = None,
+    alias_generator: Optional[params.ParamAliasGenerator] = None,
     security_scopes: Optional[List[str]] = None,
     use_cache: bool = True,
 ) -> Dependant:
@@ -377,7 +377,7 @@ def get_param_field(
     default_field_info: Type[params.Param] = params.Param,
     force_type: Optional[params.ParamTypes] = None,
     ignore_default: bool = False,
-    alias_generator: Optional[Callable[[str], str]] = None,
+    alias_generator: Optional[params.ParamAliasGenerator] = None,
 ) -> ModelField:
     default_value = Required
     had_schema = False
@@ -401,11 +401,16 @@ def get_param_field(
     if not param.annotation == param.empty:
         annotation = param.annotation
     annotation = get_annotation_from_field_info(annotation, field_info, param_name)
-    if not field_info.alias and getattr(field_info, "convert_underscores", None):
-        alias = param.name.replace("_", "-")
-    elif not field_info.alias and alias_generator is not None:
-        alias = alias_generator(param.name)
-    else:
+    alias = None
+    if not field_info.alias:
+        if getattr(field_info, "convert_underscores", None):
+            alias = param.name.replace("_", "-")
+        if alias_generator is not None:
+            if callable(alias_generator):
+                alias = alias_generator(param.name)
+            elif field_info.in_ in alias_generator:
+                alias = alias_generator[field_info.in_](param.name)
+    if alias is None:
         alias = field_info.alias or param.name
     field = create_response_field(
         name=param.name,
@@ -477,7 +482,7 @@ async def solve_dependencies(
     body: Optional[Union[Dict[str, Any], FormData]] = None,
     background_tasks: Optional[BackgroundTasks] = None,
     response: Optional[Response] = None,
-    alias_generator: Optional[Callable[[str], str]] = None,
+    alias_generator: Optional[params.ParamAliasGenerator] = None,
     populate_name: bool = False,
     dependency_overrides_provider: Optional[Any] = None,
     dependency_cache: Optional[Dict[Tuple[Callable[..., Any], Tuple[str]], Any]] = None,

@@ -173,7 +173,7 @@ def get_request_handler(
     response_model_exclude_unset: bool = False,
     response_model_exclude_defaults: bool = False,
     response_model_exclude_none: bool = False,
-    request_field_alias_generator: Optional[Callable[[str], str]] = None,
+    request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
     request_field_allow_population_by_field_name: bool = False,
     dependency_overrides_provider: Optional[Any] = None,
 ) -> Callable[[Request], Coroutine[Any, Any, Response]]:
@@ -263,7 +263,7 @@ def get_request_handler(
 def get_websocket_app(
     dependant: Dependant,
     dependency_overrides_provider: Optional[Any] = None,
-    request_field_alias_generator: Optional[Callable[[str], str]] = None,
+    request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
     request_field_allow_population_by_field_name: bool = False,
 ) -> Callable[[WebSocket], Coroutine[Any, Any, Any]]:
     async def app(websocket: WebSocket) -> None:
@@ -291,7 +291,7 @@ class APIWebSocketRoute(routing.WebSocketRoute):
         endpoint: Callable[..., Any],
         *,
         name: Optional[str] = None,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         dependency_overrides_provider: Optional[Any] = None,
     ) -> None:
@@ -338,7 +338,7 @@ class APIRoute(routing.Route):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Union[Type[Response], DefaultPlaceholder] = Default(
@@ -484,7 +484,7 @@ class APIRouter(routing.Router):
         on_startup: Optional[Sequence[Callable[[], Any]]] = None,
         on_shutdown: Optional[Sequence[Callable[[], Any]]] = None,
         deprecated: Optional[bool] = None,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
     ) -> None:
@@ -537,7 +537,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Union[Type[Response], DefaultPlaceholder] = Default(
@@ -583,8 +583,9 @@ class APIRouter(routing.Router):
             response_model_exclude_unset=response_model_exclude_unset,
             response_model_exclude_defaults=response_model_exclude_defaults,
             response_model_exclude_none=response_model_exclude_none,
-            request_field_alias_generator=request_field_alias_generator
-            or self.request_field_alias_generator,
+            request_field_alias_generator=params.merge_param_alias_generators(
+                request_field_alias_generator, self.request_field_alias_generator
+            ),
             request_field_allow_population_by_field_name=request_field_allow_population_by_field_name
             or self.request_field_allow_population_by_field_name,
             include_in_schema=include_in_schema and self.include_in_schema,
@@ -617,7 +618,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Type[Response] = Default(JSONResponse),
@@ -750,7 +751,10 @@ class APIRouter(routing.Router):
                     response_model_exclude_unset=route.response_model_exclude_unset,
                     response_model_exclude_defaults=route.response_model_exclude_defaults,
                     response_model_exclude_none=route.response_model_exclude_none,
-                    request_field_alias_generator=route.request_field_alias_generator,
+                    request_field_alias_generator=params.merge_param_alias_generators(
+                        route.request_field_alias_generator,
+                        self.request_field_alias_generator,
+                    ),
                     request_field_allow_population_by_field_name=route.request_field_allow_population_by_field_name,
                     include_in_schema=route.include_in_schema
                     and self.include_in_schema
@@ -803,7 +807,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Type[Response] = Default(JSONResponse),
@@ -859,7 +863,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Type[Response] = Default(JSONResponse),
@@ -915,7 +919,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Type[Response] = Default(JSONResponse),
@@ -971,7 +975,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Type[Response] = Default(JSONResponse),
@@ -1027,7 +1031,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Type[Response] = Default(JSONResponse),
@@ -1083,7 +1087,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Type[Response] = Default(JSONResponse),
@@ -1139,7 +1143,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Type[Response] = Default(JSONResponse),
@@ -1195,7 +1199,7 @@ class APIRouter(routing.Router):
         response_model_exclude_unset: bool = False,
         response_model_exclude_defaults: bool = False,
         response_model_exclude_none: bool = False,
-        request_field_alias_generator: Optional[Callable[[str], str]] = None,
+        request_field_alias_generator: Optional[params.ParamAliasGenerator] = None,
         request_field_allow_population_by_field_name: bool = False,
         include_in_schema: bool = True,
         response_class: Type[Response] = Default(JSONResponse),
