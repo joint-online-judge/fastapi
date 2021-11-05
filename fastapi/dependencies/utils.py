@@ -108,7 +108,11 @@ def check_file_field(field: ModelField) -> None:
 
 
 def get_param_sub_dependant(
-    *, param: inspect.Parameter, path: str, security_scopes: Optional[List[str]] = None
+    *,
+    param: inspect.Parameter,
+    path: str,
+    alias_generator: Optional[Callable[[str], str]] = None,
+    security_scopes: Optional[List[str]] = None,
 ) -> Dependant:
     depends: params.Depends = param.default
     if depends.dependency:
@@ -120,15 +124,26 @@ def get_param_sub_dependant(
         dependency=dependency,
         path=path,
         name=param.name,
+        alias_generator=alias_generator,
         security_scopes=security_scopes,
     )
 
 
-def get_parameterless_sub_dependant(*, depends: params.Depends, path: str) -> Dependant:
+def get_parameterless_sub_dependant(
+    *,
+    depends: params.Depends,
+    path: str,
+    alias_generator: Optional[Callable[[str], str]] = None,
+) -> Dependant:
     assert callable(
         depends.dependency
     ), "A parameter-less dependency must have a callable dependency"
-    return get_sub_dependant(depends=depends, dependency=depends.dependency, path=path)
+    return get_sub_dependant(
+        depends=depends,
+        dependency=depends.dependency,
+        path=path,
+        alias_generator=alias_generator,
+    )
 
 
 def get_sub_dependant(
@@ -137,6 +152,7 @@ def get_sub_dependant(
     dependency: Callable[..., Any],
     path: str,
     name: Optional[str] = None,
+    alias_generator: Optional[Callable[[str], str]] = None,
     security_scopes: Optional[List[str]] = None,
 ) -> Dependant:
     security_requirement = None
@@ -155,6 +171,7 @@ def get_sub_dependant(
         path=path,
         call=dependency,
         name=name,
+        alias_generator=alias_generator,
         security_scopes=security_scopes,
         use_cache=depends.use_cache,
     )
@@ -271,6 +288,7 @@ def get_dependant(
     path: str,
     call: Callable[..., Any],
     name: Optional[str] = None,
+    alias_generator: Optional[Callable[[str], str]] = None,
     security_scopes: Optional[List[str]] = None,
     use_cache: bool = True,
 ) -> Dependant:
@@ -281,14 +299,20 @@ def get_dependant(
     for param_name, param in signature_params.items():
         if isinstance(param.default, params.Depends):
             sub_dependant = get_param_sub_dependant(
-                param=param, path=path, security_scopes=security_scopes
+                param=param,
+                path=path,
+                security_scopes=security_scopes,
+                alias_generator=alias_generator,
             )
             dependant.dependencies.append(sub_dependant)
             continue
         if add_non_field_param_to_dependency(param=param, dependant=dependant):
             continue
         param_field = get_param_field(
-            param=param, default_field_info=params.Query, param_name=param_name
+            param=param,
+            default_field_info=params.Query,
+            param_name=param_name,
+            alias_generator=alias_generator,
         )
         if param_name in path_param_names:
             assert is_scalar_field(
@@ -304,6 +328,7 @@ def get_dependant(
                 default_field_info=params.Path,
                 force_type=params.ParamTypes.path,
                 ignore_default=ignore_default,
+                alias_generator=alias_generator,
             )
             add_param_to_fields(field=param_field, dependant=dependant)
         elif is_scalar_field(field=param_field):
@@ -352,6 +377,7 @@ def get_param_field(
     default_field_info: Type[params.Param] = params.Param,
     force_type: Optional[params.ParamTypes] = None,
     ignore_default: bool = False,
+    alias_generator: Optional[Callable[[str], str]] = None,
 ) -> ModelField:
     default_value = Required
     had_schema = False
@@ -377,6 +403,8 @@ def get_param_field(
     annotation = get_annotation_from_field_info(annotation, field_info, param_name)
     if not field_info.alias and getattr(field_info, "convert_underscores", None):
         alias = param.name.replace("_", "-")
+    elif not field_info.alias and alias_generator is not None:
+        alias = alias_generator(param.name)
     else:
         alias = field_info.alias or param.name
     field = create_response_field(
@@ -449,6 +477,8 @@ async def solve_dependencies(
     body: Optional[Union[Dict[str, Any], FormData]] = None,
     background_tasks: Optional[BackgroundTasks] = None,
     response: Optional[Response] = None,
+    alias_generator: Optional[Callable[[str], str]] = None,
+    populate_name: bool = False,
     dependency_overrides_provider: Optional[Any] = None,
     dependency_cache: Optional[Dict[Tuple[Callable[..., Any], Tuple[str]], Any]] = None,
 ) -> Tuple[
@@ -489,6 +519,7 @@ async def solve_dependencies(
                 path=use_path,
                 call=call,
                 name=sub_dependant.name,
+                alias_generator=alias_generator,
                 security_scopes=sub_dependant.security_scopes,
             )
             use_sub_dependant.security_scopes = sub_dependant.security_scopes
@@ -499,6 +530,8 @@ async def solve_dependencies(
             body=body,
             background_tasks=background_tasks,
             response=response,
+            alias_generator=alias_generator,
+            populate_name=populate_name,
             dependency_overrides_provider=dependency_overrides_provider,
             dependency_cache=dependency_cache,
         )
@@ -530,16 +563,16 @@ async def solve_dependencies(
         if sub_dependant.cache_key not in dependency_cache:
             dependency_cache[sub_dependant.cache_key] = solved
     path_values, path_errors = request_params_to_args(
-        dependant.path_params, request.path_params
+        dependant.path_params, request.path_params, populate_name
     )
     query_values, query_errors = request_params_to_args(
-        dependant.query_params, request.query_params
+        dependant.query_params, request.query_params, populate_name
     )
     header_values, header_errors = request_params_to_args(
-        dependant.header_params, request.headers
+        dependant.header_params, request.headers, populate_name
     )
     cookie_values, cookie_errors = request_params_to_args(
-        dependant.cookie_params, request.cookies
+        dependant.cookie_params, request.cookies, populate_name
     )
     values.update(path_values)
     values.update(query_values)
@@ -577,6 +610,7 @@ async def solve_dependencies(
 def request_params_to_args(
     required_params: Sequence[ModelField],
     received_params: Union[Mapping[str, Any], QueryParams, Headers],
+    populate_name: bool = False,
 ) -> Tuple[Dict[str, Any], List[ErrorWrapper]]:
     values = {}
     errors = []
@@ -584,9 +618,15 @@ def request_params_to_args(
         if is_scalar_sequence_field(field) and isinstance(
             received_params, (QueryParams, Headers)
         ):
-            value = received_params.getlist(field.alias) or field.default
+            value = received_params.getlist(field.alias)
+            if not value and populate_name:
+                value = received_params.getlist(field.name)
+            if not value:
+                value = field.default
         else:
             value = received_params.get(field.alias)
+            if value is None and populate_name:
+                value = received_params.get(field.name)
         field_info = field.field_info
         assert isinstance(
             field_info, params.Param
